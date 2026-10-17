@@ -1,0 +1,25 @@
+flowchart TD
+  FE["Browser — Next.js 16 portal<br/>login · catalog · checkout · status · refund"]
+
+  MONO["monolith :8085 — Go, net/http, stdlib only, one binary<br/>TransactionLifecycle: pricing · state chart · idempotency · authz"]
+
+  PARTNER["ms-paymentagr :8081 — Go + Gin + Redis<br/>simulated partner: charge · refund · checkout page"]
+
+  PG[("PostgreSQL 15<br/>transaction + store schemas")]
+  REDIS[("Redis 7<br/>sessions · partner TTL")]
+  POLL["Outbox poller — every 5s<br/>3x backoff, then terminal"]
+  INV["Invoice receipt files<br/>INVOICE_DIR/invoice_*.json"]
+  DLQ[("dlq.* rows<br/>never redelivered")]
+  SWEEP["Sweeper — every 60s<br/>stale READY → FAILED"]
+  FLOW["Status chart — CREATED → READY → SUCCESS → PUBLISHED<br/>SUCCESS → REFUND · READY → FAILED"]
+
+  FE -->|"login · POST /v1/order + Idempotency-Key<br/>poll status · refund"| MONO
+  MONO -->|"product_trx + outbox + idempotency<br/>in ONE database transaction"| PG
+  MONO -->|"POST /payments/charge<br/>header: api-key"| PARTNER
+  PARTNER -.->|"callback: HMAC-SHA256 + 300s replay window<br/>forged signatures get 401"| MONO
+  MONO --> REDIS
+  PG --> POLL
+  POLL --> INV
+  POLL --> DLQ
+  PG --> SWEEP
+  MONO -.-> FLOW

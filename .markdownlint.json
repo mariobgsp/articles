@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/schema/markdownlint-config-schema.json",
+  "default": true,
+  "MD013": false,
+  "MD033": {
+    "allowed_elements": ["details", "summary", "code", "br", "sub", "sup", "img", "kbd"]
+  },
+  "MD041": false,
+  "MD024": { "siblings_only": true }
+}

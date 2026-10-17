@@ -1,0 +1,16 @@
+{
+  "name": "mariobgsp-articles-tools",
+  "private": true,
+  "type": "module",
+  "description": "Capture + diagram tooling for the project articles. Screenshots are taken from the real running applications, so the images in each article can be regenerated.",
+  "scripts": {
+    "diagrams": "python3 tools/render-diagrams.py",
+    "capture:payment-system": "node tools/capture/payment-system.mjs",
+    "capture:the-gateway": "node tools/capture/the-gateway.mjs",
+    "capture:trading-suite": "node tools/capture/trading-suite.mjs",
+    "capture:routre": "node tools/capture/routre.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}

@@ -1,0 +1,34 @@
+flowchart TD
+  U["Browser — Svelte 5 SPA<br/>Chat · Agents · Groups · Providers"]
+
+  subgraph WEB["packages/web — the client"]
+    ST["state.svelte.ts — one runes store<br/>the only place frames mutate state"]
+    WS["ws.ts — a socket per conversation<br/>plus a presence socket"]
+    ID["lib/identity.ts — one normaliser<br/>colour + emoji identity"]
+  end
+
+  subgraph SRV["packages/server — Fastify, bound to 127.0.0.1"]
+    AUTH["auth.ts<br/>X-PI-Token + Host allowlist"]
+    ROOMS["rooms.ts · router.ts · nyahut.ts<br/>group orchestration"]
+    STREAM["stream.ts<br/>watch() to wire frames,<br/>partials read from pi.live"]
+    ACT["activity.ts<br/>who is generating right now"]
+  end
+
+  subgraph DUR["pi-durable harness — pinned 1.3.0"]
+    H["Harness<br/>conversations · submissions<br/>every step a durable task"]
+    DB[("SQLite<br/>data/app.sqlite")]
+    H --> DB
+  end
+
+  LLM["pi-ai providers<br/>opencode-go · deepseek-v4.1-flash<br/>faux provider when PI_E2E=1"]
+
+  U --> ST
+  ST --> WS
+  WS <-->|"HTTP + WebSocket · X-PI-Token"| AUTH
+  AUTH --> ROOMS
+  AUTH --> STREAM
+  AUTH --> ACT
+  ROOMS --> H
+  STREAM --> H
+  ID -.-> ST
+  H --> LLM

@@ -1,0 +1,14 @@
+flowchart TD
+  BR["Browser<br/>API list · Store · Try it"]
+
+  BFF["Next.js server — BffGateway, the trust boundary<br/>/gw/[...path] catch-all · gwRoutes.ts route table"]
+
+  GO["gateway-go :8080<br/>JWT auth · rate limiting · api / account / auth / forward"]
+
+  STORE[("PostgreSQL 15<br/>ApiGateway configs · StoreAccounts · users")]
+  UP["Configured upstream APIs"]
+
+  BR -->|"gw_session cookie — httpOnly, SameSite=Lax,<br/>Secure in production, never in localStorage"| BFF
+  BFF -->|"server-side fetch only —<br/>the JWT never leaves the server"| GO
+  GO --> STORE
+  GO -->|"GatewayForward: resolve config → allowlist headers and params<br/>→ encode the URL once → enforce request gates<br/>5s dial · 30s client timeout"| UP

@@ -1,0 +1,25 @@
+flowchart TD
+  AG["Coding agents<br/>Claude Code · Codex · opencode · Cursor<br/>one base URL: 127.0.0.1:20128"]
+
+  subgraph PIPE["routre — one static Go binary, 7 steps per request"]
+    direction TB
+    S1["1–3 · Prepare<br/>detect dialect → RTK compress → cache lookup"]
+    S2["4–5 · Decide<br/>tiered router → candidateRunner"]
+    S3["6–7 · Answer<br/>translate dialect → relay"]
+    S1 --> S2 --> S3
+  end
+
+  CACHE[("LRU cache<br/>+ disk snapshot<br/>warm across restarts")]
+  TIERS["Provider tiers, walked in order<br/>subscription → cheap → free"]
+  CD["Exponential cooldown on failure<br/>2s → 5m, per provider · Retry-After honoured"]
+  LEDGER[("~/.routre/usage.json<br/>tokens + cost per agent")]
+  OBS["Observability<br/>JSONL per-phase latency<br/>/metrics · /v1/status · /ui"]
+
+  AG --> S1
+  S1 <--> CACHE
+  S1 -. "cache hit — replay, no upstream call" .-> S3
+  S2 --> TIERS
+  TIERS --> CD
+  CD -. "failover to the next tier" .-> S2
+  S3 --> LEDGER
+  S3 --> OBS
