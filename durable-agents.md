@@ -11,6 +11,7 @@
 | **Role** | TypeScript / full-stack engineering, durable execution, streaming protocol design |
 | **Stack** | Svelte 5 (runes) + Vite 8 · Fastify + WebSocket · SQLite via `@earendil-works/pi-durable` 1.3.0 |
 | **Verified** | App run locally, checks and E2E suite executed (2026-10-17). Verification numbers below are mine, not quoted from the README. |
+| **Order** | 2 |
 
 ## At a glance
 

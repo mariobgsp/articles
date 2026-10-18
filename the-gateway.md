@@ -11,6 +11,7 @@
 | **Role** | Backend (Go) + full-stack engineering |
 | **Stack** | Next.js 15 (BFF) · Go 1.x + chi + pgx · PostgreSQL 15 · Docker Compose / Kubernetes |
 | **Verified** | Built and run locally via Docker Compose (2026-10-17). The cookie and BFF evidence below is copied from that run. |
+| **Order** | 5 |
 
 ## At a glance
 

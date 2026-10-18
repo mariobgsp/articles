@@ -11,6 +11,7 @@
 | **Role** | Backend engineering, distributed-systems consolidation, security hardening |
 | **Stack** | Go (`net/http` stdlib) · PostgreSQL 15 · Redis 7 · Next.js 16 portal · Docker Compose |
 | **Verified** | All five containers built and run locally (2026-10-17); the full lifecycle was driven end to end and screenshotted. |
+| **Order** | 4 |
 
 ## At a glance
 

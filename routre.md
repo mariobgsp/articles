@@ -12,6 +12,7 @@
 | **Stack** | Go 1.26, standard library only — no Node, Python, Postgres or Redis |
 | **Footprint** | ~10.6 MiB static binary, ~12.6 MiB idle RSS |
 | **Verified** | Cloned, built and run locally (2026-10-17). Every screenshot and every number quoted as "observed" below comes from that run. |
+| **Order** | 1 |
 
 ## At a glance
 

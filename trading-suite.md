@@ -11,6 +11,7 @@
 | **Role** | Backend engineering, quantitative research tooling, data integrity |
 | **Stack** | Python 3 + FastAPI · SQLite (WAL) · Vite + React 19 + TanStack Router · yfinance / IDX |
 | **Verified** | Built and run locally (2026-10-17). The verdict quoted below is the app's own output on my run. |
+| **Order** | 3 |
 
 ## At a glance
 
@@ -273,6 +274,7 @@ showing the distance between them — 24.45% under its 40-session high, breadth 
 Two real defects, both found by running the stack rather than reading it. Both are
 the same class of bug: **the fail-closed design exists in `verdict.py` but is
 bypassed when the bar source throws before the verdict stage runs.**
+
 1. **A missing study checkout returns HTTP 500 instead of `DATA_UNSAFE`.**
    `default_source()` correctly falls back to `LiveBars`, but `_load()` calls
    `source.load(None)` and the live adapter's signature requires a list, so
