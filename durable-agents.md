@@ -10,7 +10,7 @@
 | **Repository** | [github.com/mariobgsp/durable-agents](https://github.com/mariobgsp/durable-agents) |
 | **Role** | TypeScript / full-stack engineering, durable execution, streaming protocol design |
 | **Stack** | Svelte 5 (runes) + Vite 8 · Fastify + WebSocket · SQLite via `@earendil-works/pi-durable` 1.3.0 |
-| **Verified** | App run locally, checks and E2E suite executed (2026-10-17). Verification numbers below are mine, not quoted from the README. |
+| **Verified** | App run locally, checks and E2E suite executed (2026-10-19). Verification numbers below are mine, not quoted from the README. |
 | **Order** | 2 |
 
 ## At a glance
@@ -51,9 +51,14 @@ browser is a view onto that log.
 | **Agents as files** | `data/agents/<slug>/{agent.json,AGENT.md,SOUL.md}`. `SOUL.md` is who it is; `AGENT.md` is its working rules. |
 | **Hot reload into live threads** | Saving an agent rebinds it into existing threads (`rebindAgent`) and reports how many threads took the new files. |
 | **Group chat, three modes** | `Nyahut` (agents claim a message by responsibility), `Moderator` (one designated member), `Silent` (`@mention` only). |
-| **Live presence** | A presence socket says which sessions are generating, including ones you are not looking at. |
+| **Live presence and activity** | A presence socket says which sessions are generating, including ones you are not looking at; the active thread gets the phase, the calls and the elapsed time derived from `pi.live`. |
 | **Per-agent models** | Each agent picks its own provider and model, with capability badges (image input, context window, cost, thinking levels). |
 | **One identity system** | Colour + emoji per agent and per group, normalised in a single module. |
+| **Attachments** | Images are normalized server-side to the model's own limits and documents become text; the bytes live in the entry the model was given, so there is no upload store. |
+| **Full Access per thread** | An agent has a Standard / Custom / Full Access tier; a grant lifts one thread to Full Access, is enforced at tool-call time, and dies with that thread. |
+| **Storage you can measure** | `#/usage` splits the data directory by part; cleanup returns the bytes it actually gave back; a purge exports the transcript before deleting its rows. |
+| **Ask, and search without a key** | A `question` tool writes a durable `chat.question` entry with option buttons; `web-search` reads DuckDuckGo's keyless HTML endpoint. |
+| **Links and diagrams** | External links are re-targeted after sanitizing; a fenced `mermaid` block becomes a pan/zoom component whose library is fetched only when a diagram renders. |
 
 ## Why this stack
 
@@ -61,10 +66,10 @@ browser is a view onto that log.
 | --- | --- | --- |
 | Durability | **`pi-durable` on SQLite** | Durability is a property of the substrate, not of the UI. A single SQLite file in WAL mode means an interrupted generation is *resumable by construction*, with no queue, no worker fleet and no server-side session memory to rebuild. |
 | Backend | **Fastify, bound to `127.0.0.1`** | The server proxies model calls and reads agent files off disk; a small, explicit HTTP layer with a WebSocket upgrade is the whole surface. |
-| Frontend | **Svelte 5 with runes** | Chat is a long-lived stream of small mutations. Runes give fine-grained reactivity without a virtual DOM or a state library, and the whole client ships at **58.77 kB gzip**. |
+| Frontend | **Svelte 5 with runes** | Chat is a long-lived stream of small mutations. Runes give fine-grained reactivity without a virtual DOM or a state library, and the entry ships at **71.86 kB gzip**, with mermaid and its layout engines in their own chunks. |
 | Transport | **WebSocket with an explicit frame contract** | Streaming partials need push, not polling. The frame types are declared in `wire.ts` on the server and mirrored in `ws.ts` on the client, so the contract has exactly two files to check. |
 | State | **One runes store** | `state.svelte.ts` is the only place incoming frames mutate state. One writer makes "why does the sidebar disagree with the chat header" a non-question — a bug class this project explicitly tested for. |
-| Testing | **E2E only, against a faux provider** | With `PI_E2E=1` every real provider is swapped for the harness's faux provider, making the whole stack deterministic: no network, no cost, no flakes. |
+| Testing | **E2E only, against a faux provider** | With `PI_E2E=1` every real provider is swapped for the harness's faux provider, and thirteen scenarios each boot a throwaway server: no network, no cost, no flakes. |
 | Bundle | **A 100 kB gzip budget** | A local app still has to load before it feels local. The budget turns "add a dependency" into a deliberate decision. |
 
 ## Architecture
@@ -115,10 +120,38 @@ flowchart TD
 
 ### Component walkthrough
 
+- **`packages/server/src/index.ts`** — every REST route and the WebSocket upgrade,
+  plus the boot-time activity scan. The message route declares its own 24 MiB body
+  limit because one request carries its own attachments.
 - **`packages/server/src/sessions.ts`** — the session index (`data/sessions.json`),
-  transcripts, `sendMessage` and `rebindAgent`.
+  the thread's own `grant`, `sendMessage` and `rebindAgent`.
+- **`packages/server/src/transcript.ts`** — turns durable entries into wire messages.
+  A user message is read through its own `chat.user` record, so attachment refs and a
+  `chat.question` entry need no special case in the mapper.
 - **`packages/server/src/stream.ts`** — turns `conversation.watch()` into wire
   frames, reading partials out of the durable `pi.live` document.
+- **`packages/server/src/live.ts`** — the one reader of `pi.live` and `pi.inbox`: it
+  derives the activity phase, the calls of the round, the queued inputs and the typing
+  authors. The phase is observed, never timed.
+- **`packages/server/src/attachments.ts`** — the only module that knows how a file
+  becomes a message: validate, normalize an image to the model's own limits, convert a
+  document, and record the result in the entry's own `data.files[]`.
+- **`packages/server/src/documents.ts`** — bytes to text: UTF-8 detected by decoding,
+  PDF through `pdftotext` on **stdin**, never a path, and a stable reason when there is
+  no text to send.
+- **`packages/server/src/permissions.ts`** — the policy behind Standard / Custom / Full
+  Access: it refuses `bash` and `codemode` to Standard and checks `read`/`write`/`edit`
+  paths against the agent's roots. The per-thread grant is resolved here; the systemd
+  unit is the boundary that actually contains an allowed tool.
+- **`packages/server/src/storage.ts`** — the data directory by part, the checkpoint +
+  vacuum, and the purge that writes `data/exports/<id>.json` before it deletes a row.
+- **`packages/server/src/usage.ts`** — the aggregates behind the Usage screen, read
+  from the durable log rather than a second counter.
+- **`packages/server/src/questions.ts`** — the `question` tool: it writes a durable
+  `chat.question` entry with `data.options` and ends the turn.
+- **`packages/server/src/search.ts`** — the `web-search` tool over DuckDuckGo's keyless
+  HTML endpoint; a changed page or an HTTP failure is reported as a failure, never as
+  "no results".
 - **`packages/server/src/router.ts`** — `planTargets()`, a **pure** function that
   decides who answers one message. No network, no model, no file access, so group
   routing is testable without any of the machinery around it.
@@ -128,15 +161,26 @@ flowchart TD
   are generating, pushed over the presence socket instead of polled.
 - **`packages/web/src/state.svelte.ts`** — the single store; the only place frames
   mutate state.
+- **`packages/web/src/lib/markdown.ts`** — markdown to sanitized HTML: mermaid fences
+  become their own component, and the external-link policy is installed after
+  sanitizing, so raw HTML in a message goes through the same rule.
 - **`packages/web/src/lib/identity.ts`** — one normaliser for agent and group
   identity, so the sidebar, chat header and message bubbles cannot disagree.
+- **The web components** — `Attachments.svelte` renders a message's files and the
+  server's reason when one was not sent; `QuestionOptions.svelte` draws a question's
+  buttons, answerable once; `Mermaid.svelte` imports mermaid inside its render effect
+  with `securityLevel: "strict"` and pans/zooms with transform math;
+  `ActivityIndicator.svelte` and `ActivityStrip.svelte` draw the phase, the calls and
+  the durable elapsed time; `Usage.svelte` holds the usage graphs and the Storage panel.
 
 ### One message, end to end
 
 1. You press Enter. The store sets `busy` immediately, so the input feels
    instant while nothing has been sent.
-2. `POST /api/sessions/:id/messages` submits an `input` event to the harness. It is
-   **already durable** when the submission id comes back.
+2. `POST /api/sessions/:id/messages` validates and converts the message (attachments,
+   the agent's image policy) and then submits an `input` event to the harness. It is
+   **already durable** when the submission id comes back; a refusal throws before
+   anything is written, so the draft is intact.
 3. The server marks the session active and opens a presence broadcast, so every
    *other* tab learns this thread is generating.
 4. The browser opens (or reuses) that conversation's socket; the harness starts the
@@ -145,6 +189,24 @@ flowchart TD
    suffix is emitted as `delta` frames — roughly 80 ms apart in a real session.
 6. On completion the committed entry is emitted as `entry`, the bubble closes with
    `message-end`, and `waitForIdle()` resolves so the session is marked idle again.
+
+### The HTTP surface
+
+The routes are the whole API; everything else is a socket frame or a file on disk.
+
+| Area | Routes |
+| --- | --- |
+| Liveness | `GET /api/health` |
+| Threads | `GET/POST /api/sessions` · `PATCH/DELETE /api/sessions/:id` · `POST /api/sessions/:id/{restore,move,restart,abort}` |
+| Messages | `GET/POST /api/sessions/:id/messages` · `GET /api/sessions/:id/attachments/:entryId/:index` |
+| Context and model | `GET /api/sessions/:id/context` · `POST /api/sessions/:id/compact` · `PUT /api/sessions/:id/model` |
+| Permissions and storage | `POST /api/sessions/:id/permissions` · `GET /api/storage` · `POST /api/storage/cleanup` · `POST /api/sessions/:id/purge` |
+| Agents | `GET/POST /api/agents` · `GET/PUT/DELETE /api/agents/:id` · `POST /api/agents/:id/enabled` · `POST /api/agents/suggest-responsibility` |
+| Models, activity, usage | `GET /api/models` · `POST /api/models/test` · `GET /api/activity` · `GET /api/usage` |
+| Providers | `GET /api/providers` · `PUT/DELETE /api/providers/:id/key` |
+| Groups | `POST /api/rooms` · `PUT /api/rooms/:id` |
+| Sockets | `GET /api/ws?conversation=<id>` · `GET /api/ws/presence` |
+| E2E only | `GET/POST /api/e2e/{state,script}` when `PI_E2E=1` and the token is right |
 
 ## Architecture decisions worth defending
 
@@ -176,14 +238,17 @@ coupling to pay down. *Benefit:* live streaming works today, and the fallback
 degrades safely — only `pi.assistant` entries may close a bubble, so the start/end
 events that *do* fire for user entries cannot truncate an answer.
 
-**Presence is pushed, and cleared with an epoch guard.**
+**Presence and activity are pushed, never polled.**
 The server tracks generating sessions in memory and pushes changes, using the
-harness's own `waitForIdle()` rather than polling or scanning transcripts. The clear
-is epoch-guarded so a waiter that resolves late cannot wipe the mark of a generation
-that started in between, and a 10-minute watchdog stops a hung provider from pinning
-a spinner forever. *Cost:* a second socket and a little server state. *Benefit:*
-"who is replying" is correct across tabs, and a stuck provider becomes an idle
-thread instead of a permanent lie.
+harness's own `waitForIdle()` rather than polling or scanning transcripts. The
+thread's phase, the calls of the round and the elapsed time ride in the same snapshot,
+derived from `pi.live` and the run task; there is deliberately no per-call timer,
+because a call is already running on the first publish that mentions it. The clear is
+epoch-guarded so a waiter that resolves late cannot wipe the mark of a generation that
+started in between, and a 10-minute watchdog stops a hung provider from pinning a
+spinner forever. *Cost:* a second socket and a little server state. *Benefit:* "who is
+replying" is correct across tabs, the indicator cannot narrate a stage that did not
+happen, and a stuck provider becomes an idle thread instead of a permanent lie.
 
 **Group routing is a pure function; claiming is a separate, cheaper call.**
 `planTargets()` decides `@mention` precedence and mode behaviour with no I/O, and
@@ -201,17 +266,25 @@ agent cannot show one colour in the sidebar and another in the bubble — and th
 suite tests precisely that: a patch touching an unrelated field must not disturb
 identity, across a restart.
 
-**The app that runs `bash` gets a real security boundary.**
+**The app that runs `bash` gets a real security boundary, and a visible policy in front of it.**
 The server binds `127.0.0.1`, rejects any request without `X-PI-Token`, allowlists
-`Host`, ships no permissive CORS, and stores its 32-byte token with mode `600`.
-*Cost:* you must inject the token into the page (the dev script does it for you).
-*Benefit:* a foreign web page can neither read the app nor reach an API that runs
-commands — which matters a great deal for a tool whose `bash` tool is genuine code
-execution, and which the editor warns about.
+`Host`, ships no permissive CORS, and stores its 32-byte token with mode `600`. On
+top of that, an agent's Standard / Custom / Full Access tier decides which tools
+exist: Standard refuses `bash` and `codemode`, and a scoped agent's `read`, `write`
+and `edit` stay inside its roots. Full Access can be granted to one thread, and only
+that thread — the grant lives on the session record, not on the agent, so the next
+thread starts back at the agent's tier. The tier is a policy and the UI labels it as
+one; `deploy/dura-agents.service` is what actually contains an allowed tool. *Cost:*
+you must inject the token into the page (the dev script does it for you), and a
+per-thread grant is a deliberate click on each thread that needs it. *Benefit:* a
+foreign web page can neither read the app nor reach an API that runs commands — which
+matters a great deal for a tool whose `bash` tool is genuine code execution, and which
+the editor warns about — and a permission decision cannot quietly outlive the thread
+that needed it.
 
 **E2E instead of unit tests, deliberately.**
-*Decision:* no unit tests; four E2E scenarios each boot a throwaway server with its
-own port, data directory and token, against the faux provider. *Cost:* coarser
+*Decision:* no unit tests; thirteen E2E scenarios each boot a throwaway server with
+its own port, data directory and token, against the faux provider. *Cost:* coarser
 failure localisation and slower feedback than a unit suite. *Benefit:* the thing
 under test is the real assembly — real sockets, real SQLite, real streaming — and it
 is deterministic. It has already earned its keep: the suite caught that an
@@ -231,8 +304,9 @@ npm run build && npm start   # one process serving UI + API + WS on 8787
 
 # checks
 npm run check          # tsc + svelte-check + the language lint
-npm run e2e            # four deterministic scenarios, faux provider
+npm run e2e            # 13 deterministic scenarios, faux provider
 npm run shots          # 8 routes × 5 viewports → docs/ui-review/<date>/
+npm run shots:replying # the activity states, attachment cards and the Full Access chip
 npm run seed           # demo threads, no model calls
 ```
 
@@ -246,15 +320,18 @@ I ran the project's own gates rather than trusting the status table:
 | Check | My result |
 | --- | --- |
 | `npm run check` | `svelte-check` **0 errors**, 2 warnings in 1 file; `tsc` clean; `check-language: clean` |
-| `npm run e2e` | **4 passed, 0 failed** (`activity`, `identity`, `models`, `sessions`) |
-| `npm run build` | `index.js` **58.77 kB gzip**, `index.css` **5.75 kB gzip** — inside the 100 kB budget |
+| `npm run e2e` | **13 passed, 0 failed** (`activity`, `attachments`, `identity`, `live-activity`, `memory`, `models`, `permissions`, `questions`, `search`, `sessions`, `steering`, `storage`, `tools`) |
+| `npm run build` | `index.js` **71.86 kB gzip**, `index.css` **7.70 kB gzip** — inside the 100 kB budget; mermaid and `elk` (455.84 kB gzip) stay in their own chunks |
 
 The E2E suite is the part worth dwelling on, because it asserts the design rather
 than the implementation. `identity` checks that an agent's colour and emoji survive
 a later patch that touches an unrelated field — the exact bug class the single
 normaliser exists to prevent. `activity` checks that an idle thread is *still* not
 active **after a restart**, which is what makes the presence registry trustworthy
-rather than merely optimistic.
+rather than merely optimistic. `storage` asserts the purge removed rows from the
+`entries` table, not just the session list; `permissions` asserts a grant is enforced
+at submit time and is not sticky on the agent; `questions` asserts the durable
+`chat.question` and the answer arriving as the next user message.
 
 ## Screenshots
 
@@ -287,16 +364,28 @@ threads are active, and the presence socket reports `connected`.*
 The repository's own gap list is unusually specific, and it is accurate — worth
 repeating rather than rediscovering, in the order I would take them:
 
-- **Attachments do not exist.** No image or file input in the composer yet, despite
-  the model capability catalog already tracking which models can see images.
+- **A purge has no UI.** `POST /api/sessions/:id/purge` exports the transcript and
+  deletes the rows, but the Storage panel only states what it would do; the thread
+  menu's delete stays a soft delete.
+- **The diagram is a large lazy download.** Mermaid and its layout engines are their
+  own chunks (`elk` alone is 455.84 kB gzip), fetched on the first diagram a thread
+  renders — the entry bundle is untouched, but the first diagram is not cheap.
+- **Web search follows DuckDuckGo's HTML.** Keyless and dependency-free, but a shape
+  dependency: a changed page is reported as a failure rather than "no results", and
+  the `search` E2E asserts against a stubbed page.
+- **Groups refuse attachments.** Each member conversation is its own model-visible
+  entry, so supporting it would keep one copy of every byte per member.
+- **There is no per-call elapsed time.** With parallel tool execution a call is
+  already running on its first publish, so its start is not observable; the round's
+  own elapsed time is real and is shown instead.
+- **The streaming workaround is a coupling to pay down.** Reading partials from the
+  `pi.live` document works, but it depends on an internal shape; the clean fix is on
+  the provider/harness side, where `message_update` should be emitted.
 - **The Tauri desktop shell has never been compiled** (`tauri-plugin-single-instance`
   is not installed), so running the desktop app twice would point two servers at one
   `app.sqlite`.
 - **No system notifications** on turn completion, and no real cost counter — the
   group cost model is an estimate shown in a tooltip.
-- **The streaming workaround is a coupling to pay down.** Reading partials from the
-  `pi.live` document works, but it depends on an internal shape; the clean fix is on
-  the provider/harness side, where `message_update` should be emitted.
 - **Single-user by design.** No remote deploy, no billing, no multi-user.
 
 ## Links
@@ -304,10 +393,12 @@ repeating rather than rediscovering, in the order I would take them:
 - **Source:** [github.com/mariobgsp/durable-agents](https://github.com/mariobgsp/durable-agents)
 - **Harness:** [`@earendil-works/pi-durable`](https://www.npmjs.com/package/@earendil-works/pi-durable) (pinned 1.3.0)
 - **Plan of record:** [`docs/roadmap.md`](https://github.com/mariobgsp/durable-agents/blob/main/docs/roadmap.md)
+- **Phone-access runbook:** [`docs/tailscale.md`](https://github.com/mariobgsp/durable-agents/blob/main/docs/tailscale.md)
+- **The boundary:** [`deploy/dura-agents.service`](https://github.com/mariobgsp/durable-agents/blob/main/deploy/dura-agents.service)
 - **UI review gallery:** [`docs/ui-review/`](https://github.com/mariobgsp/durable-agents/tree/main/docs/ui-review)
 
 ---
 
-*Verified against commit `19256b7` (README uses an English example transcript).
+*Verified against commit `ba185dd` (README uses an English example transcript).
 Diagram source: [`diagrams/durable-agents.mmd`](diagrams/durable-agents.mmd).
 Capture script: [`tools/capture/durable-agents.mjs`](tools/capture/durable-agents.mjs).*

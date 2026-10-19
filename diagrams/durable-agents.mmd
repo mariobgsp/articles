@@ -1,34 +1,41 @@
 flowchart TD
-  U["Browser — Svelte 5 SPA<br/>Chat · Agents · Groups · Providers"]
+  U["Browser — Svelte 5 SPA<br/>Chat · Agents · Groups · Providers · Usage"]
 
-  subgraph WEB["packages/web — the client"]
+  subgraph WEB["packages/web"]
+    VIEWS["views + components<br/>Chat · Agents · AgentEditor · Groups<br/>Providers · Usage · Attachments<br/>Markdown · Mermaid · QuestionOptions"]
     ST["state.svelte.ts — one runes store<br/>the only place frames mutate state"]
     WS["ws.ts — a socket per conversation<br/>plus a presence socket"]
-    ID["lib/identity.ts — one normaliser<br/>colour + emoji identity"]
+    ID["lib/identity.ts<br/>colour + emoji identity"]
   end
 
-  subgraph SRV["packages/server — Fastify, bound to 127.0.0.1"]
+  subgraph SRV["packages/server"]
     AUTH["auth.ts<br/>X-PI-Token + Host allowlist"]
-    ROOMS["rooms.ts · router.ts · nyahut.ts<br/>group orchestration"]
-    STREAM["stream.ts<br/>watch() to wire frames,<br/>partials read from pi.live"]
-    ACT["activity.ts<br/>who is generating right now"]
+    ROUTES["index.ts<br/>REST routes + WS upgrade"]
+    CORE["sessions.ts · transcript.ts<br/>stream.ts · live.ts · activity.ts<br/>threads · frames · phase · presence"]
+    GROUPS["rooms.ts · router.ts · nyahut.ts<br/>group orchestration"]
+    DATA["attachments.ts · documents.ts · permissions.ts<br/>storage.ts · usage.ts<br/>bytes · policy · disk"]
   end
 
-  subgraph DUR["pi-durable harness — pinned 1.3.0"]
+  subgraph DUR["pi-durable 1.3.0"]
     H["Harness<br/>conversations · submissions<br/>every step a durable task"]
     DB[("SQLite<br/>data/app.sqlite")]
+    TOOLS["questions.ts · search.ts<br/>installed as tools"]
     H --> DB
+    H -->|installs| TOOLS
   end
 
   LLM["pi-ai providers<br/>opencode-go · deepseek-v4.1-flash<br/>faux provider when PI_E2E=1"]
 
-  U --> ST
+  U --> VIEWS
+  VIEWS --> ST
   ST --> WS
-  WS <-->|"HTTP + WebSocket · X-PI-Token"| AUTH
-  AUTH --> ROOMS
-  AUTH --> STREAM
-  AUTH --> ACT
-  ROOMS --> H
-  STREAM --> H
   ID -.-> ST
+  WS <-->|"HTTP + WebSocket · X-PI-Token"| AUTH
+  AUTH --> ROUTES
+  ROUTES --> CORE
+  ROUTES --> GROUPS
+  ROUTES --> DATA
+  CORE --> H
+  GROUPS --> H
+  DATA -.-> H
   H --> LLM
