@@ -8,9 +8,12 @@
     "capture:payment-system": "node tools/capture/payment-system.mjs",
     "capture:the-gateway": "node tools/capture/the-gateway.mjs",
     "capture:trading-suite": "node tools/capture/trading-suite.mjs",
-    "capture:routre": "node tools/capture/routre.mjs"
+    "capture:routre": "node tools/capture/routre.mjs",
+    "capture:durable-agents": "node tools/capture/durable-agents.mjs",
+    "lint:markdown": "markdownlint-cli2 --config .markdownlint.json *.md"
   },
   "devDependencies": {
+    "markdownlint-cli2": "0.18.1",
     "playwright-core": "^1.56.0"
   }
 }

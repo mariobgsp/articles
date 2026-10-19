@@ -77,6 +77,24 @@ Two of the captures need a local fixture rather than the real dependency:
   private study checkout containing **real daily bars** and **no evidence files**,
   which is what makes the app produce its `DATA_UNSAFE` verdict on its own logic.
 
+## CI
+
+Two workflows, in two files, because the two halves have different permissions.
+`.github/workflows/articles-validate.yml` runs on every push and on every pull request and holds
+`contents: read` and nothing else; `.github/workflows/articles-drift.yml` runs daily and on demand
+and holds `issues: write`. Neither one lists an article, a repository or a branch: the inventory is
+derived from the articles themselves.
+
+```bash
+python3 -m tools.articles_ci validate   # the checks; the validate workflow runs exactly this
+python3 -m tools.articles_ci drift      # read the drift report here first; writes nothing
+python3 -m tools.articles_ci selftest   # proves validate, drift and publish offline
+```
+
+The drift workflow runs `python3 -m tools.articles_ci drift --publish --out drift-report.json` and
+keeps one issue, rewritten in place: it names the sections that went stale, the upstream paths that
+prove it, and the handoff. Nothing in CI edits prose, and the pin moving is the human's step.
+
 ## Defects found by running the code
 
 Documented in the relevant articles' *What I'd fix next* sections, and worth

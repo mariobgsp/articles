@@ -106,6 +106,15 @@ PAGE = """<!doctype html>
 """
 
 
+def output_path(name, theme_name):
+    """The one place a render's file name is decided.
+
+    Invariant: `images/<stem>-architecture[-dark].png` is this function's business alone,
+    so the article checker and the fixture read it here instead of restating the pattern.
+    """
+    return IMAGES / f"{name}-architecture{THEMES[theme_name]['suffix']}.png"
+
+
 def chromium():
     for name in ("chromium", "chromium-browser", "google-chrome", "chrome"):
         path = shutil.which(name)
@@ -144,7 +153,7 @@ def render(name, source, theme_name, cfg, browser, workdir):
         capture_output=True,
     )
 
-    out = IMAGES / f"{name}-architecture{cfg['suffix']}.png"
+    out = output_path(name, theme_name)
     # -trim cuts the empty canvas, the border puts the padding back.
     subprocess.run(
         [

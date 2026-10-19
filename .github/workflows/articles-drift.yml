@@ -1,0 +1,42 @@
+name: articles-drift
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read    # the whole file; the write grant is job-scoped, below
+
+concurrency:
+  group: articles-drift
+  cancel-in-progress: false    # never cancelled between "found an issue" and
+                               # "updated it": one writer is what keeps it one
+
+jobs:
+  drift:
+    name: detect upstream drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write    # the only write grant in the repo, on the one non-PR job
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # actions/setup-python v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+      - name: Detect drift and update the single issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -m tools.articles_ci drift --publish
+          --out drift-report.json
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: drift-report
+          path: drift-report.json
+          retention-days: 30
