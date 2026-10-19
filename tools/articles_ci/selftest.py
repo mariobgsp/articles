@@ -475,9 +475,10 @@ def _case_no_external_target() -> str:
 def _case_markdownlint() -> str:
     binary = REPO_ROOT / "node_modules" / ".bin" / "markdownlint-cli2"
     if not binary.exists():
-        if os.environ.get("GITHUB_ACTIONS"):
-            raise AssertionError("markdownlint-cli2 is missing in CI, where the validate job installs it")
-        return "skip: markdownlint-cli2 is absent here; the validate job proves this check with npm ci"
+        # The selftest job installs nothing, so the linter is absent exactly where this half is
+        # proved; the validate job runs `npm ci` and proves this one check end to end. Reported
+        # as a skip rather than a pass, so a no-op can never be read as evidence.
+        return "skip: markdownlint-cli2 is not installed here; the validate job proves this check with npm ci"
     with _fixture("current") as fixture:
         inventory = discover(fixture.articles_dir)
         target = sorted(inventory.articles, key=lambda item: item.path)[0]
