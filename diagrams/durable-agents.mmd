@@ -1,27 +1,24 @@
 flowchart TD
-  U["Browser — Svelte 5 SPA<br/>Chat · Agents · Groups · Providers · Usage"]
+  U["Browser — Svelte 5 SPA<br/>Chat · Agents · Groups · System · Usage · Providers"]
 
   subgraph WEB["packages/web"]
-    VIEWS["views + components<br/>Chat · Agents · AgentEditor · Groups<br/>Providers · Usage · Attachments<br/>Markdown · Mermaid · QuestionOptions"]
+    VIEWS["views + components<br/>Chat · Agents · Groups · System<br/>Composer · DiagramDrawer"]
     ST["state.svelte.ts — one runes store<br/>the only place frames mutate state"]
-    WS["ws.ts — a socket per conversation<br/>plus a presence socket"]
-    ID["lib/identity.ts<br/>colour + emoji identity"]
+    WS["ws.ts — one socket per conversation<br/>plus a presence socket"]
+    ID["lib/identity.ts + lib/display.ts<br/>identity + display"]
   end
 
   subgraph SRV["packages/server"]
-    AUTH["auth.ts<br/>X-PI-Token + Host allowlist"]
-    ROUTES["index.ts<br/>REST routes + WS upgrade"]
-    CORE["sessions.ts · transcript.ts<br/>stream.ts · live.ts · activity.ts<br/>threads · frames · phase · presence"]
-    GROUPS["rooms.ts · router.ts · nyahut.ts<br/>group orchestration"]
-    DATA["attachments.ts · documents.ts · permissions.ts<br/>storage.ts · usage.ts<br/>bytes · policy · disk"]
+    AUTH["auth.ts — Fastify on 127.0.0.1<br/>X-PI-Token + Host allowlist"]
+    CORE["threads + streaming<br/>sessions · transcript · stream<br/>live · activity"]
+    ORCH["groups + agent network<br/>rooms · router · nyahut<br/>mesh · roster · fleet"]
+    OPS["schedules, files, operations<br/>cron · schedules · attachments<br/>artifacts · system · display · storage"]
   end
 
   subgraph DUR["pi-durable 1.3.0"]
     H["Harness<br/>conversations · submissions<br/>every step a durable task"]
     DB[("SQLite<br/>data/app.sqlite")]
-    TOOLS["questions.ts · search.ts<br/>installed as tools"]
     H --> DB
-    H -->|installs| TOOLS
   end
 
   LLM["pi-ai providers<br/>opencode-go · deepseek-v4.1-flash<br/>faux provider when PI_E2E=1"]
@@ -31,11 +28,10 @@ flowchart TD
   ST --> WS
   ID -.-> ST
   WS <-->|"HTTP + WebSocket · X-PI-Token"| AUTH
-  AUTH --> ROUTES
-  ROUTES --> CORE
-  ROUTES --> GROUPS
-  ROUTES --> DATA
+  AUTH --> CORE
+  AUTH --> ORCH
+  AUTH --> OPS
   CORE --> H
-  GROUPS --> H
-  DATA -.-> H
+  ORCH --> H
+  OPS -.-> H
   H --> LLM

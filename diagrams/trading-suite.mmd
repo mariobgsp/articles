@@ -1,23 +1,33 @@
 flowchart TD
-  FE["Vite + React 19 SPA :5173<br/>Tonight · Screener · Method · Name<br/>SWR cache: memory + sessionStorage"]
+  FE["Vite + React 19 SPA :5173<br/>Tonight · Screener · Market · Flow · Method · Name<br/>SWR cache: memory + sessionStorage"]
 
-  PLAN["FastAPI :8000 — app/plan/<br/>screen · method · model<br/>verdict · refresh · regimes"]
+  API["FastAPI :8000"]
+
+  PLAN["app/plan<br/>screen · method · model · verdict<br/>refresh · regimes · citations · CLI · momentum"]
+  FLOW["app/flow<br/>technicals · flow proxy · validation<br/>research only — never a plan input"]
+  OVER["app/overview<br/>snapshot · summary · stress gauge · rotation<br/>cache-first dashboard"]
 
   VERD{"Verdict machine<br/>strict precedence"}
-  DB[("SQLite WAL — cache.db<br/>TTL policy + stale-while-revalidate<br/>live tail merged in memory only")]
+  DB[("SQLite WAL — cache.db<br/>market cache · flow:v2 · overview:v1")]
   STUDY[("Study artifacts — hard dependency<br/>results/*.csv · bars/*.csv<br/>+ sha256 manifest")]
-  CIT["citations.py — file · line · sentence<br/>conformance tests fail on drift"]
+  CIT["citations.py + conformance tests<br/>fail on drift"]
 
   OUT["ENTER"]
   W["WAIT"]
   N["NO_TRADE"]
   U["DATA_UNSAFE"]
 
-  FE --> PLAN
+  FE --> API
+  API --> PLAN
+  API --> FLOW
+  API --> OVER
   PLAN --> VERD
   PLAN --> DB
   PLAN --> STUDY
   PLAN --> CIT
+  FLOW --> DB
+  OVER --> DB
+  OVER --> STUDY
   VERD --> OUT
   VERD --> W
   VERD --> N
