@@ -14,7 +14,8 @@ five unrelated blog posts:
    or message takes.
 5. **Key choices** — the decisions that matter, with their price.
 6. **Running it** — the shortest verified commands, plus what I actually observed.
-7. **Screenshots** — captured from the running application.
+7. **In use** — screenshots captured from the running application, or the command
+   surface where a terminal and a chat *are* the application.
 8. **What I'd fix next** — including defects I found by running the code.
 9. **Links** — the repository, the design docs, and the diagram source.
 
@@ -26,7 +27,7 @@ five unrelated blog posts:
 | [**payment-system**](payment-system.md) — *One Go Binary, No Kafka* | A payment lifecycle (order → charge → signed callback → invoice → refund) as one Go monolith. | Go · PostgreSQL · Redis · Next.js | A Postgres **outbox** replacing Kafka without losing atomicity, and a measured trigger for splitting again. |
 | [**the-gateway**](the-gateway.md) — *JWTs Stay on the Server* | API-management console for outbound third-party APIs, with a Next.js BFF in front. | Next.js 15 · Go · PostgreSQL | A trust boundary where the session token is unreachable by page JavaScript, and allowlists enforced from persisted configuration. |
 | [**trading-suite**](trading-suite.md) — *The Screener That Refuses to Buy* | A self-hosted IDX market desk with six screens and a CLI, whose verdict can be "no trade" or "the data is not sound". | Python · FastAPI · SQLite · Vite + React 19 | **Refusal as a product feature**: `DATA_UNSAFE` outranks every signal, and the evidence behind each number is traceable to the study. |
-| [**durable-agents**](durable-agents.md) — *Chats That Survive a Crash* | Local agent chat where every message and generation is a durable SQLite task, plus an agent network, schedules and generated files. | Svelte 5 · Fastify · SQLite (`pi-durable`) | Durability owned by the harness rather than the UI, and a group/network protocol where agents decide who answers. |
+| [**durable-agents**](durable-agents.md) — *Agents That Survive a Crash* | A local agent fleet driven from Telegram: one daemon owns durable conversations, a CLI and a read-only fleet TUI do the administration, one bot per agent. | Node + TypeScript · one daemon over a `0600` Unix socket · Telegram Bot API · SQLite (`pi-durable`) | Durability owned by the daemon rather than the transport, plus steering into a live run instead of queueing a second turn. |
 
 ## Layout
 
@@ -42,6 +43,7 @@ articles/
   images/                    diagrams (light + dark) and application screenshots
   tools/render-diagrams.py   diagrams/*.mmd -> images/<slug>-architecture[-dark].png
   tools/capture/*.mjs        screenshot scripts, one per application
+                             (durable-agents captures a CLI surface, not a page)
   tools/capture/*.sh|py      local run helpers (routre demo, study stub)
 ```
 
@@ -61,7 +63,7 @@ python3 tools/render-diagrams.py --theme=light  # one theme only
 npm run capture:payment-system   # needs docker compose up (5 containers)
 npm run capture:the-gateway      # needs docker compose up (3 containers)
 npm run capture:trading-suite    # needs ./trading-suite run
-npm run capture:durable-agents   # needs npm run dev in that repo
+npm run capture:durable-agents   # needs a checkout of that repo (default ../durable-agents)
 npm run capture:routre           # needs tools/capture/routre-demo.sh first
 ```
 
@@ -104,6 +106,8 @@ software rather than screenshots of a README:
 | payment-system | `ms-paymentagr` sends `reference_id`; the monolith's `CallbackEvt` reads `referenceId`. Verified: `snake_case` → HTTP 400, `camelCase` → HTTP 202. The payment can never reach `SUCCESS` through the normal partner flow. |
 | trading-suite | With no study checkout, `LiveBars.load()` receives `None` and raises `TypeError` → HTTP 500, instead of the intended `DATA_UNSAFE` verdict. |
 | trading-suite | The Method screen has no error state, so a failed load shows "Loading the method…" forever and looks like a slow one. |
+| durable-agents | The README documents a Telegram progress line — `Bash · running a command · step 1` — that `progressLine()` in `packages/telegram/src/runtime.ts` does not print: the code emits `bash: git status`-style lines, keeps the last three, and has no step counter. *Fixed in [#3](https://github.com/mariobgsp/durable-agents/pull/3).* |
+| durable-agents | The README's benchmark table is followed by a raw `\textit{This run used the offline faux provider…}` line, so GitHub renders that caveat as an indented code block instead of an italic note. *Fixed in [#3](https://github.com/mariobgsp/durable-agents/pull/3).* |
 
 ## Notes
 
@@ -113,5 +117,7 @@ software rather than screenshots of a README:
 - Screenshots are captured at 2× device scale and 2000 px wide; diagrams are
   rendered at 2× and trimmed to content, which keeps text legible at article width.
 - Each article's closing note records the commit it was verified against and links
-  its diagram source and capture script. The prose is re-read against that commit;
+  its diagram source and capture script. For durable-agents the capture script records
+  the command surface, because that project's surface is a Telegram chat and a terminal
+  rather than a page. The prose is re-read against that commit;
   screenshots come from the dated capture run named in the article's header.

@@ -1,58 +1,89 @@
-// Capture the durable-agents app running locally (Fastify :8787 + Vite :5173).
+// Capture durable-agents' command surface, from a checkout of that repository.
 //
-//   npm run dev
-//   node tools/capture/durable-agents.mjs /tmp/shots/durable-agents
+//   node tools/capture/durable-agents.mjs [outDir] [--repo <path>] [--sha <sha>]
 //
-// Read-only: this navigates and screenshots existing threads. It never sends a
-// message, so no model call is made and no thread is modified.
+// There is no browser in this project any more: it is a daemon, a CLI, a
+// read-only fleet TUI and one Telegram bot per agent. So the honest capture is
+// the command surface itself — the command list and the two catalogs — read out
+// of the checkout that the article's closing pin names.
 //
-// Hash routes: #/ · #/s/<id> · #/groups · #/agents · #/agents/<id> · #/providers
-import { chromium } from "playwright-core";
+// Read-only, and offline: no daemon is started, no model call is made, no
+// socket is opened, and DURA_HOME points at a throwaway directory so nothing on
+// this machine is read or written.
+//
+// Output: <outDir>/in-use.md — the blocks quoted in the article's "In use"
+// section — plus a one-line summary of the counts that were observed.
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
-const OUT = process.argv[2] ?? "/tmp/shots/durable-agents";
-const BASE = process.env.AGENTS_URL ?? "http://localhost:5173";
+const argv = process.argv.slice(2);
+const flag = (name) => {
+  const i = argv.indexOf(name);
+  if (i === -1) return undefined;
+  const value = argv[i + 1];
+  argv.splice(i, 2);
+  return value;
+};
 
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/usr/bin/chromium",
-  args: ["--no-sandbox"],
-});
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-const page = await ctx.newPage();
-page.on("pageerror", (e) => console.log("  [pageerror]", e.message.slice(0, 160)));
+const OUT = resolve(argv[0] ?? "/tmp/shots/durable-agents");
+const REPO = resolve(flag("--repo") ?? "../durable-agents");
+const EXPECTED = flag("--sha");
 
-async function shot(name) {
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: `${OUT}/${name}.png` });
-  console.log("  shot", name, "->", await page.evaluate(() => location.hash));
+function git(...args) {
+  return execFileSync("git", ["-C", REPO, ...args], { encoding: "utf8" }).trim();
 }
 
-const routes = [
-  ["01-groups", "#/groups"],
-  ["02-agents", "#/agents"],
-  ["03-agent-editor", "#/agents/pirate"],
-  ["04-providers", "#/providers"],
-];
-
-for (const [name, hash] of routes) {
-  await page.goto(`${BASE}/${hash}`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(1600);
-  await shot(name);
-  const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-  console.log(`  ${name}: ${text.slice(0, 150)}`);
+const sha = git("rev-parse", "--short", "HEAD");
+const subject = git("log", "-1", "--format=%s");
+const dirty = git("status", "--porcelain");
+if (EXPECTED && !git("rev-parse", "HEAD").startsWith(EXPECTED)) {
+  console.error(`warning: HEAD is ${sha}, the article pins ${EXPECTED}`);
+}
+if (dirty) {
+  console.error("warning: the checkout has uncommitted changes, so this is not the pinned tree");
 }
 
-// Open a real group thread: the Nyahut flow is the interesting screen.
-const group = process.env.AGENTS_GROUP_ID ?? "502";
-await page.goto(`${BASE}/#/s/${group}`, { waitUntil: "networkidle" });
-await page.waitForTimeout(2500);
-await shot("05-group-thread");
-console.log("  group:", (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 220));
+// A throwaway home: `provider list` reads config, never a daemon.
+const home = mkdtempSync(join(tmpdir(), "dura-capture-"));
 
-// And a one-to-one agent thread.
-const solo = process.env.AGENTS_SOLO_ID ?? "550";
-await page.goto(`${BASE}/#/s/${solo}`, { waitUntil: "networkidle" });
-await page.waitForTimeout(2500);
-await shot("06-agent-thread");
-console.log("  solo:", (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 200));
+function dura(...args) {
+  return execFileSync("node", ["packages/cli/bin/dura.ts", ...args], {
+    cwd: REPO,
+    env: { ...process.env, DURA_HOME: home, NO_COLOR: "1" },
+    encoding: "utf8",
+    timeout: 120_000,
+  }).trim();
+}
 
-await browser.close();
+// The `--help` output is a fixed layout; drop the "Global:" trailer, which is
+// repeated in the article's prose.
+const help = dura("--help");
+const version = dura("--version");
+const providers = dura("provider", "list", "--all");
+// The provider table carries this machine's credential state, which belongs in
+// no article; the catalog size is the fact, and the model table is public.
+const models = dura("provider", "models", "opencode-go");
+
+const count = (text) => text.split("\n").filter((line) => line.trim() !== "").length - 1;
+const providerCount = count(providers);
+const modelCount = count(models);
+
+mkdirSync(OUT, { recursive: true });
+const out = join(OUT, "in-use.md");
+writeFileSync(
+  out,
+  `<!-- captured from ${sha} (${subject}) on ${new Date().toISOString().slice(0, 10)} -->\n` +
+    `\`${version}\` — ${providerCount} providers, ${modelCount} models on opencode-go.\n\n` +
+    "```text\n" +
+    help +
+    "\n```\n\n" +
+    "```text\n" +
+    models.split("\n").slice(0, 9).join("\n") +
+    "\n…\n```\n",
+);
+
+rmSync(home, { recursive: true, force: true });
+console.log(`captured ${version} at ${sha}: ${providerCount} providers, ${modelCount} models -> ${out}`);
+console.log(`  ${subject}`);
