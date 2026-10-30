@@ -28,7 +28,7 @@ from .anchor import looks_like_path
 from .drift import DriftReport, healthy, unhealthy
 from .drift import run as drift_run
 from .git import run_git
-from .parse import Article, discover, parse_refs, parse_sections
+from .parse import Article, discover, parse_refs, parse_sections, slug_for_title
 from .report import MAX_COMMITS_IN_BODY, to_json, to_markdown
 from .validate import check_markdownlint, image_path, validate_repo
 
@@ -107,6 +107,7 @@ def build_fixture(root: Path, *, scenario: str) -> Fixture:
     articles_dir = root / "articles"
     articles_dir.mkdir(parents=True)
     _copy_skeleton(articles_dir)
+    _inject_fixture_prose(articles_dir)
     inventory = discover(articles_dir)
     if not inventory.articles:
         raise RuntimeError("the fixture copied no articles; run the selftest from the repository root")
@@ -500,6 +501,34 @@ def _copy_skeleton(articles_dir: Path) -> None:
     shutil.copytree(REPO_ROOT / "tools" / "capture", articles_dir / "tools" / "capture")
     if (REPO_ROOT / "node_modules" / ".bin" / "markdownlint-cli2").exists():
         (articles_dir / "node_modules").symlink_to(REPO_ROOT / "node_modules", target_is_directory=True)
+
+
+def _inject_fixture_prose(articles_dir: Path) -> None:
+    """Give the fixture the two shapes two cases prove, instead of borrowing them.
+
+    Invariant: a case fails only when the check it names is broken. The same-page anchor and
+    the `path:line` mention this harness proves used to be incidental features of the real
+    articles, so a commit that simplified the prose (13a37aa) retired both proofs without
+    touching the harness, and the job stayed red for days. They are fixture data now, added
+    before the closing pin, which has to remain the article's last block.
+    """
+    candidates = sorted(path for path in articles_dir.glob("*.md") if path.name != "README.md")
+    if not candidates:
+        raise RuntimeError("the fixture copied no articles to inject into")
+    target = candidates[0]
+    text = target.read_text(encoding="utf-8")
+    heading = next((match.group(1) for match in re.finditer(r"^##\s+(.+)$", text, re.MULTILINE)), None)
+    if heading is None:
+        raise RuntimeError(f"{target.name} offers no `##` heading to anchor to")
+    head, marker, closing = text.rpartition("\n---\n")
+    if not marker:
+        raise RuntimeError(f"{target.name} has no closing pin block to insert before")
+    block = (
+        f"The fixture adds one same-page [jump link](#{slug_for_title(heading)}) and one\n"
+        f"numbered citation, `{ADDED_CODE_DIR}/cited.go:3`, so the harness proves both\n"
+        "shapes without depending on the article's own prose.\n"
+    )
+    target.write_text(head.rstrip("\n") + "\n\n" + block + "\n---\n" + closing, encoding="utf-8")
 
 
 def _materialise_images(articles_dir: Path, articles: Sequence[Article]) -> None:
