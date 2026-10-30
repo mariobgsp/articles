@@ -10,7 +10,7 @@
 | **Repository** | [github.com/mariobgsp/payment-system](https://github.com/mariobgsp/payment-system) |
 | **Role** | Backend engineering, distributed-systems consolidation, security hardening |
 | **Stack** | Go (`net/http` stdlib) · PostgreSQL 15 · Redis 7 · Next.js portal · Docker Compose |
-| **Verified** | Re-read against commit `0f2acef` (2026-10-25; dependency bumps only). Screenshots and observed output are from the 2026-10-17 run. |
+| **Verified** | Re-read against commit `084d207` (2026-10-28; a `tailwindcss` v3 pin that restores the frontend build). Screenshots and observed output are from the 2026-10-17 run. |
 | **Order** | 4 |
 
 ## At a glance
@@ -145,6 +145,21 @@ cd ms-paymentagr && go vet ./... && go build ./...
 cd frontend && npm ci && npm run build
 ```
 
+The frontend build is the one command that was **not** green for a while. At
+`0f2acef` a dependabot major bump had moved `tailwindcss` to 4.3.3 while
+`globals.css` still uses the `@tailwind base/components/utilities` directives,
+`tailwind.config.ts` uses the v3 `Config` type, and `postcss.config.mjs` registers
+`tailwindcss` as a PostCSS plugin, which v4 no longer supports, so the build stops:
+
+```text
+Error: It looks like you're trying to use `tailwindcss` directly as a PostCSS plugin.
+The PostCSS plugin has moved to a separate package, …
+```
+
+`084d207` pins it back to `^3.4.19`. I ran both sides in a clean worktree rather
+than trusting the commit message: exit **1** at `0f2acef` with tailwind 4.3.3
+installed, exit **0** at `084d207` in 41 s.
+
 ### What I observed
 
 The five-container stack came up clean and the lifecycle ran end to end. The
@@ -195,7 +210,13 @@ arrives empty and the callback is rejected:
 The signature is correct; the payment sits at `READY` until the poller gives up.
 Map the payload in one place, or assert the shape in the partner's tests.
 
-**3 — Smaller items.** Postgres is pinned to an unmaintained `15-alpine3.17`;
+**3 — The Tailwind 4 migration is deferred, not done.** Pinning `^3.4.19` restores the
+build, but the codebase is still v3-only: a real move needs `@tailwindcss/postcss`,
+`@import "tailwindcss"` instead of the three directives, and a CSS-first theme, plus a
+visual pass over every screen. Until then a major bump can break the default branch
+again, which is what happened here.
+
+**4 — Smaller items.** Postgres is pinned to an unmaintained `15-alpine3.17`;
 seeded users ship real BCrypt hashes; and `payment_date` is set at `READY`, not
 settlement.
 
@@ -208,6 +229,6 @@ settlement.
 
 ---
 
-*Verified against commit `0f2acef` (2026-10-25). Diagram source:
+*Verified against commit `084d207` (2026-10-28). Diagram source:
 [`diagrams/payment-system.mmd`](diagrams/payment-system.mmd). Capture script:
 [`tools/capture/payment-system.mjs`](tools/capture/payment-system.mjs).*
