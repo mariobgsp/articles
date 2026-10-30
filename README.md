@@ -106,8 +106,8 @@ software rather than screenshots of a README:
 | payment-system | `ms-paymentagr` sends `reference_id`; the monolith's `CallbackEvt` reads `referenceId`. Verified: `snake_case` → HTTP 400, `camelCase` → HTTP 202. The payment can never reach `SUCCESS` through the normal partner flow. |
 | trading-suite | With no study checkout, `LiveBars.load()` receives `None` and raises `TypeError` → HTTP 500, instead of the intended `DATA_UNSAFE` verdict. |
 | trading-suite | The Method screen has no error state, so a failed load shows "Loading the method…" forever and looks like a slow one. |
-| durable-agents | The README documents a Telegram progress line — `Bash · running a command · step 1` — that `progressLine()` in `packages/telegram/src/runtime.ts` does not print: the code emits `bash: git status`-style lines, keeps the last three, and has no step counter. |
-| durable-agents | The README's benchmark table is followed by a raw `\textit{This run used the offline faux provider…}` line, so GitHub renders that caveat as an indented code block instead of an italic note. |
+| durable-agents | The README documents a Telegram progress line — `Bash · running a command · step 1` — that `progressLine()` in `packages/telegram/src/runtime.ts` does not print: the code emits `bash: git status`-style lines, keeps the last three, and has no step counter. *Fixed in [#3](https://github.com/mariobgsp/durable-agents/pull/3).* |
+| durable-agents | The README's benchmark table is followed by a raw `\textit{This run used the offline faux provider…}` line, so GitHub renders that caveat as an indented code block instead of an italic note. *Fixed in [#3](https://github.com/mariobgsp/durable-agents/pull/3).* |
 
 ## Notes
 

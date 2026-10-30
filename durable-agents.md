@@ -10,7 +10,7 @@
 | **Repository** | [github.com/mariobgsp/durable-agents](https://github.com/mariobgsp/durable-agents) |
 | **Role** | TypeScript / systems engineering: durable execution, transport design, process supervision |
 | **Stack** | Node + TypeScript (`packages/cli` · `packages/core` · `packages/telegram`) · one daemon over a `0600` Unix socket · Telegram Bot API · SQLite via `@earendil-works/pi-durable` 1.3.0 |
-| **Verified** | Re-read against `9138f67` (2026-10-29). Checks are my run on that commit: `npm run check` clean, `npm run e2e` 23/23, `npm run bench` 5/5 at 222 MB peak PSS. |
+| **Verified** | Re-read against `61ddadb` (2026-10-30). Checks are my run at `9138f67`; the only commit since is the README fix below: `npm run check` clean, `npm run e2e` 23/23, `npm run bench` 5/5 at 222 MB peak PSS. |
 | **Order** | 2 |
 
 ## At a glance
@@ -337,14 +337,13 @@ bot   <the answer, rich-formatted: headings, a table, a code block>
   `dura user add <id>` is the manual path.
 - **Voice, video, per-agent hooks and a skills curator are not implemented.** Not
   started, and the roadmap says so rather than implying otherwise.
-- **The README documents a progress line the code does not print.** It shows
-  `Bash · running a command · step 1`; `progressLine()` in
-  `packages/telegram/src/runtime.ts` actually emits `bash: git status`-style lines and keeps
-  the last three, and there is no `step` counter anywhere in the path. The README sentence
-  should point at the real card.
-- **The README has a rendering defect I hit while re-reading.** The benchmark table is
-  followed by `\textit{This run used the offline faux provider; …}` on an indented line,
-  so GitHub renders raw LaTeX as a code block instead of an italic caveat.
+**Two documentation defects, found by reading the code and fixed upstream.** The README
+showed progress lines as `Bash · running a command · step 1`; `progressLine()` in
+`packages/telegram/src/runtime.ts` emits `bash: git status`-style lines, keeps the last
+three, and has no step counter anywhere in the path. And the benchmark table was followed
+by a raw `\textit{This run used the offline faux provider; …}` line, which GitHub renders
+as a code block rather than an italic caveat. Both are corrected in
+[`#3`](https://github.com/mariobgsp/durable-agents/pull/3) — the commit this article pins.
 
 ## Links
 
@@ -359,7 +358,7 @@ bot   <the answer, rich-formatted: headings, a table, a code block>
 
 ---
 
-*Verified against commit `9138f67` (2026-10-29). Diagram source:
+*Verified against commit `61ddadb` (2026-10-30). Diagram source:
 [`diagrams/durable-agents.mmd`](diagrams/durable-agents.mmd). Capture script:
 [`tools/capture/durable-agents.mjs`](tools/capture/durable-agents.mjs) — the CLI surface,
 because there is no browser left to photograph.*
